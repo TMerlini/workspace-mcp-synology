@@ -1,0 +1,536 @@
+{
+  "updatedAt": "2026-04-03T14:17:23.399Z",
+  "createdAt": "2026-04-03T14:02:04.051Z",
+  "id": "znumjmrMFIFJjhJ9",
+  "name": "Echo \u2014 Google Workspace Action",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "id": "n1",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "workspace-mcp-v3",
+      "parameters": {
+        "path": "workspace-action",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "n2",
+      "name": "Get Access Token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        460,
+        300
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "http://192.168.68.54:7078/workspace-token",
+        "options": {}
+      }
+    },
+    {
+      "id": "n3",
+      "name": "MCP Initialize",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://workspace-mcp.gen-plasma.com/mcp",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $('Get Access Token').item.json.access_token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json, text/event-stream"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{},\"clientInfo\":{\"name\":\"n8n-echo\",\"version\":\"1.0\"}}}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "responseFormat": "text"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "n4b",
+      "name": "Build MCP Body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const tool = $('Webhook').item.json.body.tool;\nconst args = $('Webhook').item.json.body.params || {};\nconst sessionId = $('MCP Initialize').item.json.headers['mcp-session-id'];\nconst token = $('Get Access Token').item.json.access_token;\nreturn [{json:{mcpBody:{jsonrpc:'2.0',id:2,method:'tools/call',params:{name:tool,arguments:args}},sessionId:sessionId,token:token}}];"
+      }
+    },
+    {
+      "id": "n4",
+      "name": "MCP Tool Call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://workspace-mcp.gen-plasma.com/mcp",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $json.token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json, text/event-stream"
+            },
+            {
+              "name": "Mcp-Session-Id",
+              "value": "={{ $json.sessionId }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.mcpBody }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "n4c",
+      "name": "Parse Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const raw = $json.data || '';\nconst tool = $('Webhook').item.json.body.tool;\nlet parsed = null;\nfor (const line of raw.split('\\n')) {\n  const trimmed = line.trim();\n  if (trimmed.startsWith('data: ')) {\n    try { parsed = JSON.parse(trimmed.slice(6)); } catch(e) {}\n  }\n}\nconst result = parsed && parsed.result;\nconst content = result && result.content && result.content[0] && result.content[0].text || raw;\nconst isError = (result && result.isError) || !!(parsed && parsed.error);\nreturn [{json:{tool, content, isError}}];"
+      }
+    },
+    {
+      "id": "n5",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1560,
+        300
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {tool: $json.tool, content: $json.content, isError: $json.isError} }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Get Access Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Access Token": {
+      "main": [
+        [
+          {
+            "node": "MCP Initialize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MCP Initialize": {
+      "main": [
+        [
+          {
+            "node": "Build MCP Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build MCP Body": {
+      "main": [
+        [
+          {
+            "node": "MCP Tool Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MCP Tool Call": {
+      "main": [
+        [
+          {
+            "node": "Parse Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Response": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": null,
+  "versionId": "e9e79e76-42e7-4efb-8f74-4e97c294a69d",
+  "activeVersionId": "e9e79e76-42e7-4efb-8f74-4e97c294a69d",
+  "versionCounter": 26,
+  "triggerCount": 1,
+  "shared": [
+    {
+      "updatedAt": "2026-04-03T14:02:04.056Z",
+      "createdAt": "2026-04-03T14:02:04.056Z",
+      "role": "workflow:owner",
+      "workflowId": "znumjmrMFIFJjhJ9",
+      "projectId": "8nqXHbGll44hs0mg",
+      "project": {
+        "updatedAt": "2026-04-01T16:48:23.587Z",
+        "createdAt": "2026-04-01T16:47:08.529Z",
+        "id": "8nqXHbGll44hs0mg",
+        "name": "Tiago Merlini <merloproductions@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "4b61657c-4762-45e4-a8ee-1ffa34a766cb"
+      }
+    }
+  ],
+  "tags": [],
+  "parentFolder": null,
+  "activeVersion": {
+    "updatedAt": "2026-04-03T14:17:23.400Z",
+    "createdAt": "2026-04-03T14:17:23.400Z",
+    "versionId": "e9e79e76-42e7-4efb-8f74-4e97c294a69d",
+    "workflowId": "znumjmrMFIFJjhJ9",
+    "nodes": [
+      {
+        "id": "n1",
+        "name": "Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          240,
+          300
+        ],
+        "webhookId": "workspace-mcp-v3",
+        "parameters": {
+          "path": "workspace-action",
+          "httpMethod": "POST",
+          "responseMode": "responseNode",
+          "options": {}
+        }
+      },
+      {
+        "id": "n2",
+        "name": "Get Access Token",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          460,
+          300
+        ],
+        "parameters": {
+          "method": "GET",
+          "url": "http://192.168.68.54:7078/workspace-token",
+          "options": {}
+        }
+      },
+      {
+        "id": "n3",
+        "name": "MCP Initialize",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          680,
+          300
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "https://workspace-mcp.gen-plasma.com/mcp",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "={{ 'Bearer ' + $('Get Access Token').item.json.access_token }}"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Accept",
+                "value": "application/json, text/event-stream"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{},\"clientInfo\":{\"name\":\"n8n-echo\",\"version\":\"1.0\"}}}",
+          "options": {
+            "response": {
+              "response": {
+                "fullResponse": true,
+                "responseFormat": "text"
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "n4b",
+        "name": "Build MCP Body",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          900,
+          300
+        ],
+        "parameters": {
+          "jsCode": "const tool = $('Webhook').item.json.body.tool;\nconst args = $('Webhook').item.json.body.params || {};\nconst sessionId = $('MCP Initialize').item.json.headers['mcp-session-id'];\nconst token = $('Get Access Token').item.json.access_token;\nreturn [{json:{mcpBody:{jsonrpc:'2.0',id:2,method:'tools/call',params:{name:tool,arguments:args}},sessionId:sessionId,token:token}}];"
+        }
+      },
+      {
+        "id": "n4",
+        "name": "MCP Tool Call",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1120,
+          300
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "https://workspace-mcp.gen-plasma.com/mcp",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "={{ 'Bearer ' + $json.token }}"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Accept",
+                "value": "application/json, text/event-stream"
+              },
+              {
+                "name": "Mcp-Session-Id",
+                "value": "={{ $json.sessionId }}"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ $json.mcpBody }}",
+          "options": {
+            "response": {
+              "response": {
+                "responseFormat": "text"
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "n4c",
+        "name": "Parse Response",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1340,
+          300
+        ],
+        "parameters": {
+          "jsCode": "const raw = $json.data || '';\nconst tool = $('Webhook').item.json.body.tool;\nlet parsed = null;\nfor (const line of raw.split('\\n')) {\n  const trimmed = line.trim();\n  if (trimmed.startsWith('data: ')) {\n    try { parsed = JSON.parse(trimmed.slice(6)); } catch(e) {}\n  }\n}\nconst result = parsed && parsed.result;\nconst content = result && result.content && result.content[0] && result.content[0].text || raw;\nconst isError = (result && result.isError) || !!(parsed && parsed.error);\nreturn [{json:{tool, content, isError}}];"
+        }
+      },
+      {
+        "id": "n5",
+        "name": "Respond",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          1560,
+          300
+        ],
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ {tool: $json.tool, content: $json.content, isError: $json.isError} }}",
+          "options": {}
+        }
+      }
+    ],
+    "connections": {
+      "Webhook": {
+        "main": [
+          [
+            {
+              "node": "Get Access Token",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get Access Token": {
+        "main": [
+          [
+            {
+              "node": "MCP Initialize",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "MCP Initialize": {
+        "main": [
+          [
+            {
+              "node": "Build MCP Body",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Build MCP Body": {
+        "main": [
+          [
+            {
+              "node": "MCP Tool Call",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "MCP Tool Call": {
+        "main": [
+          [
+            {
+              "node": "Parse Response",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse Response": {
+        "main": [
+          [
+            {
+              "node": "Respond",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Tiago Merlini",
+    "name": null,
+    "description": null,
+    "autosaved": false,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-04-03T14:17:27.860Z",
+        "id": 26,
+        "workflowId": "znumjmrMFIFJjhJ9",
+        "versionId": "e9e79e76-42e7-4efb-8f74-4e97c294a69d",
+        "event": "activated",
+        "userId": "4b61657c-4762-45e4-a8ee-1ffa34a766cb"
+      }
+    ]
+  },
+  "scopes": [
+    "workflow:create",
+    "workflow:delete",
+    "workflow:execute",
+    "workflow:execute-chat",
+    "workflow:list",
+    "workflow:move",
+    "workflow:publish",
+    "workflow:read",
+    "workflow:share",
+    "workflow:unpublish",
+    "workflow:unshare",
+    "workflow:update",
+    "workflow:updateRedactionSetting"
+  ],
+  "checksum": "62741e1be2509d64730deb3d43fde7759486c99758a7b43f154a06f83239364b"
+}

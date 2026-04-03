@@ -1,0 +1,1128 @@
+{
+  "updatedAt": "2026-04-03T16:30:06.329Z",
+  "createdAt": "2026-04-01T16:49:48.019Z",
+  "id": "wRGXyh4qISbrOLVB",
+  "name": "Echo \u2014 Telegram Webhook",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "id": "n1",
+      "name": "Telegram Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "telegram-echo",
+        "webhookId": "23861de3-8ce7-457b-8bdf-15a54ec17a03",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "webhookId": "23861de3-8ce7-457b-8bdf-15a54ec17a03"
+    },
+    {
+      "id": "n3",
+      "name": "Valid Message?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        460,
+        380
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.body.message }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "n4",
+      "name": "Voice or Text?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        680,
+        380
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c2",
+              "leftValue": "={{ $json.body.message.voice }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "n5",
+      "name": "Get Voice File",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        900,
+        260
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.telegram.org/botTELEGRAM_BOT_TOKEN/getFile",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "file_id",
+              "value": "={{ $json.body.message.voice.file_id }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n6",
+      "name": "Build Download URL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        260
+      ],
+      "parameters": {
+        "jsCode": "const filePath = $input.first().json.result.file_path;\nconst token = 'TELEGRAM_BOT_TOKEN';\nconst url = `https://api.telegram.org/file/bot${token}/${filePath}`;\nreturn [{ json: { downloadUrl: url } }];"
+      }
+    },
+    {
+      "id": "n7",
+      "name": "Download Voice",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1340,
+        260
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.downloadUrl }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "n8",
+      "name": "Transcribe",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1560,
+        260
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://192.168.68.54:7078/transcribe",
+        "sendBody": true,
+        "contentType": "binaryData",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-File-Ext",
+              "value": ".oga"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 120000
+        },
+        "inputDataFieldName": "data"
+      }
+    },
+    {
+      "id": "n9",
+      "name": "Prepare Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        460
+      ],
+      "parameters": {
+        "jsCode": "const isVoice = $input.first().json.transcript !== undefined;\nconst msg = $('Valid Message?').first().json.body.message;\nconst text = $input.first().json.transcript || msg.text || msg.caption || '';\nconst chatId = msg.chat.id;\nconst photos = msg.photo;\nconst photoFileId = photos && photos.length > 0 ? photos[photos.length - 2 < 0 ? 0 : photos.length - 2].file_id : null;\nreturn [{ json: { text, chatId: String(chatId), isVoice, photoFileId } }];"
+      }
+    },
+    {
+      "id": "n10",
+      "name": "Get Context",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1780,
+        460
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "http://192.168.68.54:7078/context",
+        "options": {}
+      }
+    },
+    {
+      "id": "n11",
+      "name": "Get History",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2000,
+        460
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "http://192.168.68.54:7078/history",
+        "options": {}
+      }
+    },
+    {
+      "id": "n12",
+      "name": "Ask Claude",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2220,
+        460
+      ],
+      "parameters": {
+        "jsCode": "const CLAUDE_KEY = 'sk-ant-api03-REDACTED';\nconst WORKSPACE_WEBHOOK = 'https://n8n.gen-plasma.com/webhook/workspace-action';\nconst BOT_TOKEN = 'TELEGRAM_BOT_TOKEN';\n\nconst system = $('Get Context').item.json.context;\nconst rawHistory = $('Get History').item.json.history;\nconst history = Array.isArray(rawHistory) ? rawHistory : (Array.isArray(rawHistory && rawHistory.history) ? rawHistory.history : []);\nconst userText = $('Prepare Message').item.json.text;\nconst chatId = $('Prepare Message').item.json.chatId;\nconst isVoice = $('Prepare Message').item.json.isVoice;\nconst photoFileId = $('Prepare Message').item.json.photoFileId;\n\nconst tools = [{\n  name: 'google_workspace',\n  description: 'Perform Google Workspace actions: check/create/update/delete calendar events, read/send Gmail, list Drive files, manage Tasks. Use this when the user wants to interact with their calendar, email, or Drive.',\n  input_schema: {\n    type: 'object',\n    properties: {\n      tool: {\n        type: 'string',\n        description: 'The MCP tool name to call',\n        enum: [\n          'list_calendars','get_events','manage_event','query_freebusy',\n          'search_gmail_messages','get_gmail_message_content','send_gmail_message','draft_gmail_message',\n          'list_drive_items','search_drive_files','get_drive_file_content',\n          'list_task_lists','list_tasks','manage_task',\n          'search_docs','get_doc_as_markdown'\n        ]\n      },\n      params: {\n        type: 'object',\n        description: 'Tool params. manage_event needs: action (create|update|delete), start_time and end_time as ISO 8601 strings e.g. 2026-04-04T10:00:00+01:00. calendar_id defaults to primary.',\n        additionalProperties: true\n      }\n    },\n    required: ['tool']\n  }\n}];\n\n// Build user content \u2014 text only, or text + image\nlet userContent;\nif (photoFileId) {\n  try {\n    // Get file path from Telegram (embed params in URL, no qs object)\n    const fileInfoResp = await this.helpers.httpRequest({\n      method: 'GET',\n      url: `https://api.telegram.org/bot${BOT_TOKEN}/getFile?file_id=${encodeURIComponent(photoFileId)}`,\n      json: true\n    });\n    const filePath = fileInfoResp.result && fileInfoResp.result.file_path;\n    if (filePath) {\n      const imageUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${filePath}`;\n      // Download image as binary and convert to base64\n      const imgResp = await this.helpers.httpRequest({\n        method: 'GET',\n        url: imageUrl,\n        returnFullResponse: true,\n        encoding: 'arraybuffer'\n      });\n      const body = imgResp.body;\n      const base64 = Buffer.isBuffer(body)\n        ? body.toString('base64')\n        : Buffer.from(body).toString('base64');\n      const ext = filePath.split('.').pop().toLowerCase();\n      const mimeType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';\n      userContent = [\n        { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } },\n        { type: 'text', text: userText || 'What do you see in this image?' }\n      ];\n    } else {\n      userContent = userText || '(sent an image \u2014 could not download it)';\n    }\n  } catch(imgErr) {\n    userContent = userText || '(sent an image \u2014 could not process it)';\n  }\n} else {\n  userContent = userText || '...';\n}\n\nconst messages = [...history, { role: 'user', content: userContent }];\n\nconst callClaude = async (msgs) => {\n  try {\n    return await this.helpers.httpRequest({\n      method: 'POST',\n      url: 'https://api.anthropic.com/v1/messages',\n      headers: {\n        'x-api-key': CLAUDE_KEY,\n        'anthropic-version': '2023-06-01'\n      },\n      body: {\n        model: 'claude-sonnet-4-6',\n        max_tokens: 1024,\n        system: system || '',\n        tools,\n        messages: msgs\n      },\n      json: true\n    });\n  } catch(e) {\n    const detail = (e.response && (e.response.data || e.response.body))\n      ? JSON.stringify(e.response.data || e.response.body).slice(0, 300)\n      : e.message;\n    throw new Error('Claude API: ' + detail);\n  }\n};\n\nlet data = await callClaude(messages);\n\nif (data.stop_reason === 'tool_use') {\n  const toolBlock = data.content.find(b => b.type === 'tool_use');\n  const wsData = await this.helpers.httpRequest({\n    method: 'POST',\n    url: WORKSPACE_WEBHOOK,\n    body: { tool: toolBlock.input.tool, params: toolBlock.input.params || {} },\n    json: true\n  });\n\n  messages.push({ role: 'assistant', content: data.content });\n  messages.push({\n    role: 'user',\n    content: [{ type: 'tool_result', tool_use_id: toolBlock.id, content: wsData.content || JSON.stringify(wsData) }]\n  });\n\n  data = await callClaude(messages);\n}\n\nconst text = (data.content || []).find(b => b.type === 'text')?.text || 'Sorry, something went wrong.';\nreturn [{ json: { text, chatId, isVoice } }];"
+      }
+    },
+    {
+      "id": "n13",
+      "name": "Send Text Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2440,
+        460
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.telegram.org/botTELEGRAM_BOT_TOKEN/sendMessage",
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "={{ $(\"Prepare Message\").item.json.chatId }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.text }}"
+            }
+          ]
+        },
+        "options": {
+          "retryOnFail": {
+            "enabled": true,
+            "maxTries": 3,
+            "waitBetweenTries": 2000
+          }
+        }
+      }
+    },
+    {
+      "id": "n14",
+      "name": "Was Voice?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2660,
+        460
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "c3",
+              "leftValue": "={{ $(\"Prepare Message\").item.json.isVoice }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "n15",
+      "name": "Send Voice Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2880,
+        340
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://192.168.68.54:7078/speak",
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "={{ $('Ask Claude').item.json.text }}"
+            }
+          ]
+        },
+        "options": {
+          "retryOnFail": {
+            "enabled": true,
+            "maxTries": 3,
+            "waitBetweenTries": 2000
+          }
+        }
+      }
+    },
+    {
+      "id": "n16",
+      "name": "Save History",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        3100,
+        460
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://192.168.68.54:7078/history",
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "user",
+              "value": "={{ $(\"Prepare Message\").item.json.text }}"
+            },
+            {
+              "name": "assistant",
+              "value": "={{ $('Ask Claude').item.json.text }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Telegram Webhook": {
+      "main": [
+        [
+          {
+            "node": "Valid Message?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid Message?": {
+      "main": [
+        [
+          {
+            "node": "Voice or Text?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Voice or Text?": {
+      "main": [
+        [
+          {
+            "node": "Get Voice File",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Voice File": {
+      "main": [
+        [
+          {
+            "node": "Build Download URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Download URL": {
+      "main": [
+        [
+          {
+            "node": "Download Voice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Voice": {
+      "main": [
+        [
+          {
+            "node": "Transcribe",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribe": {
+      "main": [
+        [
+          {
+            "node": "Prepare Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Message": {
+      "main": [
+        [
+          {
+            "node": "Get Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Context": {
+      "main": [
+        [
+          {
+            "node": "Get History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get History": {
+      "main": [
+        [
+          {
+            "node": "Ask Claude",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ask Claude": {
+      "main": [
+        [
+          {
+            "node": "Send Text Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Text Reply": {
+      "main": [
+        [
+          {
+            "node": "Was Voice?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Was Voice?": {
+      "main": [
+        [
+          {
+            "node": "Send Voice Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Save History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Voice Reply": {
+      "main": [
+        [
+          {
+            "node": "Save History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": null,
+  "versionId": "988bcdfc-6def-4d31-833a-eacfb7468380",
+  "activeVersionId": "988bcdfc-6def-4d31-833a-eacfb7468380",
+  "versionCounter": 55,
+  "triggerCount": 1,
+  "shared": [
+    {
+      "updatedAt": "2026-04-01T16:49:48.027Z",
+      "createdAt": "2026-04-01T16:49:48.027Z",
+      "role": "workflow:owner",
+      "workflowId": "wRGXyh4qISbrOLVB",
+      "projectId": "8nqXHbGll44hs0mg",
+      "project": {
+        "updatedAt": "2026-04-01T16:48:23.587Z",
+        "createdAt": "2026-04-01T16:47:08.529Z",
+        "id": "8nqXHbGll44hs0mg",
+        "name": "Tiago Merlini <merloproductions@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "4b61657c-4762-45e4-a8ee-1ffa34a766cb"
+      }
+    }
+  ],
+  "tags": [],
+  "parentFolder": null,
+  "activeVersion": {
+    "updatedAt": "2026-04-03T16:30:06.331Z",
+    "createdAt": "2026-04-03T16:30:06.331Z",
+    "versionId": "988bcdfc-6def-4d31-833a-eacfb7468380",
+    "workflowId": "wRGXyh4qISbrOLVB",
+    "nodes": [
+      {
+        "id": "n1",
+        "name": "Telegram Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          240,
+          300
+        ],
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "telegram-echo",
+          "webhookId": "23861de3-8ce7-457b-8bdf-15a54ec17a03",
+          "responseMode": "onReceived",
+          "options": {}
+        },
+        "webhookId": "23861de3-8ce7-457b-8bdf-15a54ec17a03"
+      },
+      {
+        "id": "n3",
+        "name": "Valid Message?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          460,
+          380
+        ],
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict"
+            },
+            "conditions": [
+              {
+                "id": "c1",
+                "leftValue": "={{ $json.body.message }}",
+                "rightValue": "",
+                "operator": {
+                  "type": "object",
+                  "operation": "exists",
+                  "singleValue": true
+                }
+              }
+            ],
+            "combinator": "and"
+          }
+        }
+      },
+      {
+        "id": "n4",
+        "name": "Voice or Text?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          680,
+          380
+        ],
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict"
+            },
+            "conditions": [
+              {
+                "id": "c2",
+                "leftValue": "={{ $json.body.message.voice }}",
+                "rightValue": "",
+                "operator": {
+                  "type": "object",
+                  "operation": "exists",
+                  "singleValue": true
+                }
+              }
+            ],
+            "combinator": "and"
+          }
+        }
+      },
+      {
+        "id": "n5",
+        "name": "Get Voice File",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4,
+        "position": [
+          900,
+          260
+        ],
+        "parameters": {
+          "method": "GET",
+          "url": "https://api.telegram.org/botTELEGRAM_BOT_TOKEN/getFile",
+          "sendQuery": true,
+          "queryParameters": {
+            "parameters": [
+              {
+                "name": "file_id",
+                "value": "={{ $json.body.message.voice.file_id }}"
+              }
+            ]
+          },
+          "options": {}
+        }
+      },
+      {
+        "id": "n6",
+        "name": "Build Download URL",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1120,
+          260
+        ],
+        "parameters": {
+          "jsCode": "const filePath = $input.first().json.result.file_path;\nconst token = 'TELEGRAM_BOT_TOKEN';\nconst url = `https://api.telegram.org/file/bot${token}/${filePath}`;\nreturn [{ json: { downloadUrl: url } }];"
+        }
+      },
+      {
+        "id": "n7",
+        "name": "Download Voice",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4,
+        "position": [
+          1340,
+          260
+        ],
+        "parameters": {
+          "method": "GET",
+          "url": "={{ $json.downloadUrl }}",
+          "options": {
+            "response": {
+              "response": {
+                "responseFormat": "file",
+                "outputPropertyName": "data"
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "n8",
+        "name": "Transcribe",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4,
+        "position": [
+          1560,
+          260
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "http://192.168.68.54:7078/transcribe",
+          "sendBody": true,
+          "contentType": "binaryData",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-File-Ext",
+                "value": ".oga"
+              }
+            ]
+          },
+          "options": {
+            "timeout": 120000
+          },
+          "inputDataFieldName": "data"
+        }
+      },
+      {
+        "id": "n9",
+        "name": "Prepare Message",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1560,
+          460
+        ],
+        "parameters": {
+          "jsCode": "const isVoice = $input.first().json.transcript !== undefined;\nconst msg = $('Valid Message?').first().json.body.message;\nconst text = $input.first().json.transcript || msg.text || msg.caption || '';\nconst chatId = msg.chat.id;\nconst photos = msg.photo;\nconst photoFileId = photos && photos.length > 0 ? photos[photos.length - 2 < 0 ? 0 : photos.length - 2].file_id : null;\nreturn [{ json: { text, chatId: String(chatId), isVoice, photoFileId } }];"
+        }
+      },
+      {
+        "id": "n10",
+        "name": "Get Context",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4,
+        "position": [
+          1780,
+          460
+        ],
+        "parameters": {
+          "method": "GET",
+          "url": "http://192.168.68.54:7078/context",
+          "options": {}
+        }
+      },
+      {
+        "id": "n11",
+        "name": "Get History",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4,
+        "position": [
+          2000,
+          460
+        ],
+        "parameters": {
+          "method": "GET",
+          "url": "http://192.168.68.54:7078/history",
+          "options": {}
+        }
+      },
+      {
+        "id": "n12",
+        "name": "Ask Claude",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2220,
+          460
+        ],
+        "parameters": {
+          "jsCode": "const CLAUDE_KEY = 'sk-ant-api03-REDACTED';\nconst WORKSPACE_WEBHOOK = 'https://n8n.gen-plasma.com/webhook/workspace-action';\nconst BOT_TOKEN = 'TELEGRAM_BOT_TOKEN';\n\nconst system = $('Get Context').item.json.context;\nconst rawHistory = $('Get History').item.json.history;\nconst history = Array.isArray(rawHistory) ? rawHistory : (Array.isArray(rawHistory && rawHistory.history) ? rawHistory.history : []);\nconst userText = $('Prepare Message').item.json.text;\nconst chatId = $('Prepare Message').item.json.chatId;\nconst isVoice = $('Prepare Message').item.json.isVoice;\nconst photoFileId = $('Prepare Message').item.json.photoFileId;\n\nconst tools = [{\n  name: 'google_workspace',\n  description: 'Perform Google Workspace actions: check/create/update/delete calendar events, read/send Gmail, list Drive files, manage Tasks. Use this when the user wants to interact with their calendar, email, or Drive.',\n  input_schema: {\n    type: 'object',\n    properties: {\n      tool: {\n        type: 'string',\n        description: 'The MCP tool name to call',\n        enum: [\n          'list_calendars','get_events','manage_event','query_freebusy',\n          'search_gmail_messages','get_gmail_message_content','send_gmail_message','draft_gmail_message',\n          'list_drive_items','search_drive_files','get_drive_file_content',\n          'list_task_lists','list_tasks','manage_task',\n          'search_docs','get_doc_as_markdown'\n        ]\n      },\n      params: {\n        type: 'object',\n        description: 'Tool params. manage_event needs: action (create|update|delete), start_time and end_time as ISO 8601 strings e.g. 2026-04-04T10:00:00+01:00. calendar_id defaults to primary.',\n        additionalProperties: true\n      }\n    },\n    required: ['tool']\n  }\n}];\n\n// Build user content \u2014 text only, or text + image\nlet userContent;\nif (photoFileId) {\n  try {\n    // Get file path from Telegram (embed params in URL, no qs object)\n    const fileInfoResp = await this.helpers.httpRequest({\n      method: 'GET',\n      url: `https://api.telegram.org/bot${BOT_TOKEN}/getFile?file_id=${encodeURIComponent(photoFileId)}`,\n      json: true\n    });\n    const filePath = fileInfoResp.result && fileInfoResp.result.file_path;\n    if (filePath) {\n      const imageUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${filePath}`;\n      // Download image as binary and convert to base64\n      const imgResp = await this.helpers.httpRequest({\n        method: 'GET',\n        url: imageUrl,\n        returnFullResponse: true,\n        encoding: 'arraybuffer'\n      });\n      const body = imgResp.body;\n      const base64 = Buffer.isBuffer(body)\n        ? body.toString('base64')\n        : Buffer.from(body).toString('base64');\n      const ext = filePath.split('.').pop().toLowerCase();\n      const mimeType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';\n      userContent = [\n        { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } },\n        { type: 'text', text: userText || 'What do you see in this image?' }\n      ];\n    } else {\n      userContent = userText || '(sent an image \u2014 could not download it)';\n    }\n  } catch(imgErr) {\n    userContent = userText || '(sent an image \u2014 could not process it)';\n  }\n} else {\n  userContent = userText || '...';\n}\n\nconst messages = [...history, { role: 'user', content: userContent }];\n\nconst callClaude = async (msgs) => {\n  try {\n    return await this.helpers.httpRequest({\n      method: 'POST',\n      url: 'https://api.anthropic.com/v1/messages',\n      headers: {\n        'x-api-key': CLAUDE_KEY,\n        'anthropic-version': '2023-06-01'\n      },\n      body: {\n        model: 'claude-sonnet-4-6',\n        max_tokens: 1024,\n        system: system || '',\n        tools,\n        messages: msgs\n      },\n      json: true\n    });\n  } catch(e) {\n    const detail = (e.response && (e.response.data || e.response.body))\n      ? JSON.stringify(e.response.data || e.response.body).slice(0, 300)\n      : e.message;\n    throw new Error('Claude API: ' + detail);\n  }\n};\n\nlet data = await callClaude(messages);\n\nif (data.stop_reason === 'tool_use') {\n  const toolBlock = data.content.find(b => b.type === 'tool_use');\n  const wsData = await this.helpers.httpRequest({\n    method: 'POST',\n    url: WORKSPACE_WEBHOOK,\n    body: { tool: toolBlock.input.tool, params: toolBlock.input.params || {} },\n    json: true\n  });\n\n  messages.push({ role: 'assistant', content: data.content });\n  messages.push({\n    role: 'user',\n    content: [{ type: 'tool_result', tool_use_id: toolBlock.id, content: wsData.content || JSON.stringify(wsData) }]\n  });\n\n  data = await callClaude(messages);\n}\n\nconst text = (data.content || []).find(b => b.type === 'text')?.text || 'Sorry, something went wrong.';\nreturn [{ json: { text, chatId, isVoice } }];"
+        }
+      },
+      {
+        "id": "n13",
+        "name": "Send Text Reply",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4,
+        "position": [
+          2440,
+          460
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.telegram.org/botTELEGRAM_BOT_TOKEN/sendMessage",
+          "sendBody": true,
+          "contentType": "json",
+          "bodyParameters": {
+            "parameters": [
+              {
+                "name": "chat_id",
+                "value": "={{ $(\"Prepare Message\").item.json.chatId }}"
+              },
+              {
+                "name": "text",
+                "value": "={{ $json.text }}"
+              }
+            ]
+          },
+          "options": {
+            "retryOnFail": {
+              "enabled": true,
+              "maxTries": 3,
+              "waitBetweenTries": 2000
+            }
+          }
+        }
+      },
+      {
+        "id": "n14",
+        "name": "Was Voice?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          2660,
+          460
+        ],
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict"
+            },
+            "conditions": [
+              {
+                "id": "c3",
+                "leftValue": "={{ $(\"Prepare Message\").item.json.isVoice }}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "true",
+                  "singleValue": true
+                }
+              }
+            ],
+            "combinator": "and"
+          }
+        }
+      },
+      {
+        "id": "n15",
+        "name": "Send Voice Reply",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4,
+        "position": [
+          2880,
+          340
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "http://192.168.68.54:7078/speak",
+          "sendBody": true,
+          "contentType": "json",
+          "bodyParameters": {
+            "parameters": [
+              {
+                "name": "text",
+                "value": "={{ $('Ask Claude').item.json.text }}"
+              }
+            ]
+          },
+          "options": {
+            "retryOnFail": {
+              "enabled": true,
+              "maxTries": 3,
+              "waitBetweenTries": 2000
+            }
+          }
+        }
+      },
+      {
+        "id": "n16",
+        "name": "Save History",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4,
+        "position": [
+          3100,
+          460
+        ],
+        "parameters": {
+          "method": "POST",
+          "url": "http://192.168.68.54:7078/history",
+          "sendBody": true,
+          "contentType": "json",
+          "bodyParameters": {
+            "parameters": [
+              {
+                "name": "user",
+                "value": "={{ $(\"Prepare Message\").item.json.text }}"
+              },
+              {
+                "name": "assistant",
+                "value": "={{ $('Ask Claude').item.json.text }}"
+              }
+            ]
+          },
+          "options": {}
+        }
+      }
+    ],
+    "connections": {
+      "Telegram Webhook": {
+        "main": [
+          [
+            {
+              "node": "Valid Message?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Valid Message?": {
+        "main": [
+          [
+            {
+              "node": "Voice or Text?",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          []
+        ]
+      },
+      "Voice or Text?": {
+        "main": [
+          [
+            {
+              "node": "Get Voice File",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Prepare Message",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get Voice File": {
+        "main": [
+          [
+            {
+              "node": "Build Download URL",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Build Download URL": {
+        "main": [
+          [
+            {
+              "node": "Download Voice",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Download Voice": {
+        "main": [
+          [
+            {
+              "node": "Transcribe",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Transcribe": {
+        "main": [
+          [
+            {
+              "node": "Prepare Message",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prepare Message": {
+        "main": [
+          [
+            {
+              "node": "Get Context",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get Context": {
+        "main": [
+          [
+            {
+              "node": "Get History",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get History": {
+        "main": [
+          [
+            {
+              "node": "Ask Claude",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Ask Claude": {
+        "main": [
+          [
+            {
+              "node": "Send Text Reply",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Send Text Reply": {
+        "main": [
+          [
+            {
+              "node": "Was Voice?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Was Voice?": {
+        "main": [
+          [
+            {
+              "node": "Send Voice Reply",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Save History",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Send Voice Reply": {
+        "main": [
+          [
+            {
+              "node": "Save History",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Tiago Merlini",
+    "name": null,
+    "description": null,
+    "autosaved": false,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-04-03T16:30:06.668Z",
+        "id": 48,
+        "workflowId": "wRGXyh4qISbrOLVB",
+        "versionId": "988bcdfc-6def-4d31-833a-eacfb7468380",
+        "event": "activated",
+        "userId": "4b61657c-4762-45e4-a8ee-1ffa34a766cb"
+      }
+    ]
+  },
+  "scopes": [
+    "workflow:create",
+    "workflow:delete",
+    "workflow:execute",
+    "workflow:execute-chat",
+    "workflow:list",
+    "workflow:move",
+    "workflow:publish",
+    "workflow:read",
+    "workflow:share",
+    "workflow:unpublish",
+    "workflow:unshare",
+    "workflow:update",
+    "workflow:updateRedactionSetting"
+  ],
+  "checksum": "51c98da50419fce8325fb5ebd505e7d90c84fe4717dbaad2e299c4f5986e8721"
+}
