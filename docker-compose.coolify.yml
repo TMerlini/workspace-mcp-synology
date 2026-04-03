@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  workspace-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: workspace-mcp
+    restart: unless-stopped
+    
+    ports:
+      - "${PORT:-8000}:8000"
+    
+    environment:
+      # Google OAuth Credentials (REQUIRED - set in Coolify)
+      - GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID}
+      - GOOGLE_OAUTH_CLIENT_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET}
+      
+      # OAuth 2.1 Multi-User Support (REQUIRED for remote hosting)
+      - MCP_ENABLE_OAUTH21=${MCP_ENABLE_OAUTH21:-true}
+      
+      # Stateless Mode (REQUIRED for containers)
+      - WORKSPACE_MCP_STATELESS_MODE=${WORKSPACE_MCP_STATELESS_MODE:-true}
+      
+      # External URL (UPDATE after Coolify assigns domain)
+      - WORKSPACE_EXTERNAL_URL=${WORKSPACE_EXTERNAL_URL}
+      
+      # Server Configuration
+      - WORKSPACE_MCP_HOST=${WORKSPACE_MCP_HOST:-0.0.0.0}
+      - WORKSPACE_MCP_PORT=${WORKSPACE_MCP_PORT:-8000}
+      
+      # Tool Selection (optional)
+      - TOOL_TIER=${TOOL_TIER:-core}
+      - TOOLS=${TOOLS:-}
+      
+      # OAuth Proxy Storage Backend
+      - WORKSPACE_MCP_OAUTH_PROXY_STORAGE_BACKEND=${WORKSPACE_MCP_OAUTH_PROXY_STORAGE_BACKEND:-disk}
+      - GOOGLE_MCP_CREDENTIALS_DIR=${GOOGLE_MCP_CREDENTIALS_DIR:-/app/store_creds}
+      
+      # Optional: Custom Search
+      - GOOGLE_PSE_API_KEY=${GOOGLE_PSE_API_KEY:-}
+      - GOOGLE_PSE_ENGINE_ID=${GOOGLE_PSE_ENGINE_ID:-}
+      
+      # Optional: Security
+      - ALLOWED_FILE_DIRS=${ALLOWED_FILE_DIRS:-}
+      - FASTMCP_SERVER_AUTH_GOOGLE_JWT_SIGNING_KEY=${FASTMCP_SERVER_AUTH_GOOGLE_JWT_SIGNING_KEY:-}
+    
+    volumes:
+      # Persistent storage for OAuth tokens (optional, only if not using stateless mode)
+      - workspace-mcp-storage:/app/store_creds
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    
+    networks:
+      - coolify
+
+volumes:
+  workspace-mcp-storage:
+    driver: local
+
+networks:
+  coolify:
+    external: true
