@@ -24,6 +24,12 @@ venv/
 
 # ---- Secrets -----------------------------------------------------------
 client_secret.json
+.env.oauth21
+
+# ---- OAuth token storage (runtime, never commit) -----------------------
+store_creds/
+*.token
+*.credentials.json
 
 # ---- Logs --------------------------------------------------------------
 mcp_server_debug.log
